@@ -1,0 +1,5 @@
+.DS_Store
+.idea/
+PreviousHomework/
+TempFiles/GoogleNews-vectors-negative300.bin
+__pycache__/
