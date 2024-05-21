@@ -2,14 +2,24 @@
 Sam's note
 In the online dataset, it will compute the embedding of the sentence in runtime. I don't quite understand this design,
 why not compute the embedding ahead of time?
+
 Explanation of the design:
 Each DataManger have a field: torch_iterators
 torch_iterators is the following format: {"train": DataLoder, "test": DataLoder, "val": DataLoder}
-DataLoder takes a Dataset as input. OnlineDataset is a child class of Dataset, we just rewrite the __getitem__ method.
-It also takes other parameters such as batch_size and shuffle, but that's not important for the explanation.
+DataLoder (torch iterator) takes a Dataset as input.
+OnlineDataset is a child class of Dataset, we just rewrite the __getitem__ method.It also takes other parameters such as
+ batch_size and shuffle, but that's not important for the explanation.
+Pytorch Dataset does care your input, it only cares that the output is in "X, y" form (__getitem__). So Theoretically,
+we can have a list of (embedding, sentiment value), and "cast" them into dataset object (so that we can construct
+dataloader of pytorch).
+What happened here, is we take a Sentence object. This object contains the text and sentiment value. Then OnlineDataset
+just convert the text into embedding (by the callback function passed to it).
+DataManager is just taking the data from SentimentTreeBank, and make pytorch DataLoder (and Dataset) instance out of it.
 
-So when we train, we will just pass the torch_iterator["train"] to get the pyTorch DataLoder.
-Same for getting the validation and test data.
+So technically we don't need a dataManager, we can just let SentimentTreeBank returns pytorch DataLoader instances. The
+advantage here is that maybe if we are trying to use other framework, then we can just wrap dataloader to output
+"dataloader" of the new framework.
+
 """
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
@@ -44,7 +54,8 @@ class OnlineDataset(Dataset):
 
     def __getitem__(self, idx):
         sent = self.data[idx]
-        sent_emb = self.sent_func(sent, **self.sent_func_kwargs)
+        # the sentence interface: take sentence as a list of words(string)
+        sent_emb = self.sent_func(sent.text, **self.sent_func_kwargs)
         sent_label = sent.sentiment_class
         return sent_emb, sent_label
 
@@ -53,6 +64,9 @@ class DataManager:
     """
     Utility class for handling all data management task. Can be used to get iterators for training and
     evaluation.
+    Sam's note
+    This class have a simple usage: provide interface to get torch iterator for train, val and test set.
+    One more thing it does: train set can be in phrase or sentence.
     """
 
     def __init__(self, use_sub_phrases, sentiment_dataset, sent_func, sent_func_kwargs, batch_size=50 ):

@@ -1,3 +1,45 @@
+"""
+Sam's Note:
+Each line of the dictionary.txt is a map between a phrase to it's phrase id, in format of "PHRASE | PHRASE_ID"
+Each line of sentiment_labels.txt is mapping from PHRASE_ID to sentiment score.
+So together we have a map from a phrase to it's sentiment score.
+
+Each line of SOStr.txt and STree.txt is corresponding to each other.
+Each line of SOStr.txt is a sentence, with each word seperated by |.
+Each line of STree.txt is a list of numbers, seperated by |. If the sentence is length n, then the first n number in
+the number list corresponds to the n words. The meaning of the number is the "place" of the parent. So say the sentence
+is "hi|hello|world|.", it's length of four. Then there will be list of numbers of length 7: 6|6|5|5|7|7|0. that means
+"hi" and "hello" have number 6, their parent is what's in the 6th place. "world" and "." have number 5, their parent is
+ what's in the 5th place. and finally, the "what's in the 5th place" and "what's in the 6th place" have number 7, so
+ their parent is number 7, which has a number of 0, and we stop when the number is 0.
+ Then we know that  "what's in the 5th place" is a phrase: "world .", and similar for "what's in the 6th place".
+ Finally the root, "what's in the 5th place", is the full sentence.
+ So it is basically a tree, the leaves are the words, nodes in the middle (might have more than 1 layer) are some
+ phrases, and then the root is the entire sentence.
+
+SentimentTreeBank._build_dataset() explanation:
+Conceptually, the first step is generating a dictionary, mapping from a phrase to the sentiment score of the phrase.
+* this is done by loading the dictionary.txt and sentiment_labels.txt
+Then, for each sentence, for each word and phrase in the sentence tree (explained above), we found the sentiment score
+of the word/phrase in the sentiment score dictionary above.
+
+Class design explanation:
+We use SentimentTreeNode to represent a sentence (and it's sentiment value), and it's sub-parts: phrases and words.
+We use Sentence to provide an interface for plain text and sentiment value/class. "Unpacking the TreeNode" object.
+SentimentTreeBank is just a function that process the raw data into Sentence objects, and provide an interface to get
+the train, test, val set (list of Sentence object).
+
+The question is, if we are getting the sentiment of a sentence directly from a dictionary, why do wew need to build a
+tree for each sentence? Or why do we represent sentence with a class of tree like structure. (If you look later, we
+will get the sentence as list of words and embed them, there is no usage of this tree like structure at all.)
+The most direct answer is, the data we have is in tree like structure (actually no, they provide a tree pointer file
+so that we can construct the tree like structure). So we need a "data loader" to read it into plain text (provide a
+getter for plain text)? But then why would stanford make the data tree like?
+One explanation is we can extract phrases from the sentences. Another explanation is maybe there are other ways to infer
+ sentiment value, and we may infer it from tree like structure? Provides flexibility for the future.
+"""
+
+
 import os
 import random
 
@@ -14,31 +56,7 @@ SENTS_PATH = "SOStr.txt"
 TREES_PATH = "STree.txt"
 DICT_PATH = "dictionary.txt"
 LABELS_path = "sentiment_labels.txt"
-'''
-Sam's Note:
-Each line of the dictionary.txt is a map between a phrase to it's phrase id, in format of "PHRASE | PHRASE_ID"
-Each line of sentiment_labels.txt is mapping from PHRASE_ID to sentiment score. 
-So together we have a map from a phrase to it's sentiment score. 
 
-Each line of SOStr.txt and STree.txt is corresponding to each other. 
-Each line of SOStr.txt is a sentence, with each word seperated by |. 
-Each line of STree.txt is a list of numbers, seperated by |. If the sentence is length n, then the first n number in 
-the number list corresponds to the n words. The meaning of the number is the "place" of the parent. So say the sentence 
-is "hi|hello|world|.", it's length of four. Then there will be list of numbers of length 7: 6|6|5|5|7|7|0. that means 
-"hi" and "hello" have number 6, their parent is what's in the 6th place. "world" and "." have number 5, their parent is
- what's in the 5th place. and finally, the "what's in the 5th place" and "what's in the 6th place" have number 7, so 
- their parent is number 7, which has a number of 0, and we stop when the number is 0. 
- Then we know that  "what's in the 5th place" is a phrase: "world .", and similar for "what's in the 6th place". 
- Finally the root, "what's in the 5th place", is the full sentence. 
- So it is basically a tree, the leaves are the words, nodes in the middle (might have more than 1 layer) are some 
- phrases, and then the root is the entire sentence. 
-
-SentimentTreeBank._build_dataset() explanation:
-Conceptually, the first step is generating a dictionary, mapping from a phrase to the sentiment score of the phrase. 
-* this is done by loading the dictionary.txt and sentiment_labels.txt
-Then, for each sentence, for each word and phrase in the sentence tree (explained above), we found the sentiment score 
-of the word/phrase in the sentiment score dictionary above. 
-'''
 
 
 def get_sentiment_class_from_val(sentiment_val: float):
@@ -163,7 +181,8 @@ class SentimentTreeBank(object):
     def _read_sentences(self):
         '''
 
-        :return: sentences: list of list. represent a paragraph, each sentence is a list of words
+        :return: sentences: list of list, or list of "sentences", represent a "paragraph",
+        each sentence is a list of words
         '''
         sentences = []
         with open(os.path.join(self._base_path, SENTS_PATH), "r", encoding="utf-8") as f:
@@ -202,6 +221,8 @@ class SentimentTreeBank(object):
         # helper function
         def get_val_from_phrase(phrase_tokens_list):
             try:
+                # phrase dic map phrase (string) to id (number)
+                # labels dic map id (number) to sentiment value
                 return labels_dict[phrases_dictionary[" ".join(phrase_tokens_list)]]
             except:
                 print("couldn't find key!")
@@ -227,16 +248,19 @@ class SentimentTreeBank(object):
                                                  min_token_idx=i)
                     else:
                         children = children_dict[i]
+                        # sorted so that they can have right order to put up to a sentence
                         children = sorted(children, key=lambda n: n.min_token_idx)
                         node_text = []
                         for child in children:
                             node_text.extend(child.text)
+                        # this is basically saying that the sentiment of a sentence is already in the sentiment dictionary.
                         node = SentimentTreeNode(text=node_text, sentiment_val=get_val_from_phrase(node_text),
                                                  children=children, min_token_idx=children[0].min_token_idx)
                         for child in children:
                             child.parent = node
                     if p > 0:
                         children_dict[p - 1].append(node)
+                    # last number in the tree label is always 0, which is the "root"
                     last_node = node
                 new_sentence = Sentence(last_node)
                 if new_sentence.sentiment_class == NEUTRAL_SENTIMENT:

@@ -1,0 +1,29 @@
+Since we are training on SST, we need to create the Sentence, SentimentTreeNode and SentimentTreeBank. The output:
+train/val/test set is python list of Sentence instances.
+Since we are working with pytorch framework, we will need to convert the python list to Dataset, DataLoader object of
+pytorch. So we need the DataManager object.
+Who's responsibility is it, to convert sentence (plain text) to embeddings?
+1. We want the flexibility of picking different kinds of sentence embedding methods
+2. We want the decoupling of dependency: The input of sentence embedding methods should either be a plain string, or
+list of words (string). i would prefer plain text (String).
+It's not the responsibility of Sentence, what if it's different model that doesn't take vector representation? One
+design could be add a "get_representation(callback)" method for Sentence. So just pass embedding function as a callback.
+It is kind of not the responsibility of DataManager too: it's only purpose is to wrap the train/test set so that they
+can run on pytorch.
+It is the responsibility of the model, the model dictates what is it's input format. (The model does not depend on
+framework, we can train LSTM on tensorflow too). So another design, is to add a middle layer between Sentence and
+DataLoader. I would prefer this design. But keep in mind the decoupling constraint on embedding function. So the middle
+layer depends on Sentence class's interface, and the embedding function.
+On the other hand, adding this extra layer seems a bit redundant, because DataManager already depends on Sentence, so
+it's not like we are going to use it anywhere else, it's designed specifically for the Sentence/SentimentTreeBank. So we
+ can basically combine the middle layer with it. It's a trade off between clarity of logic and redundancy of design.
+ Similarly, OnlineDataset can depend on sentence too, because it is also only used during training time. And we are
+ not using it any where else... [Now I understand the design fully]
+ We can reuse the embedding method, so the embedding method should for sure decouple from Sentence. Should we write
+ another class for it? Or simply pass in as a call back? Doesnt really matter. Let's make it a function for now.
+
+2024.05.21
+Remember from the online course: Usually there are three problem with tensor:
+1. dtype
+2. device
+3. shape
