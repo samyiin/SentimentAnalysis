@@ -3,3 +3,6 @@
 PreviousHomework/
 TempFiles/GoogleNews-vectors-negative300.bin
 __pycache__/
+TempFiles/SST_DataManager
+TempFiles/biLSTM
+.ipynb_checkpoints/

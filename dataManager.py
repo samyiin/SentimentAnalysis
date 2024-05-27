@@ -69,7 +69,7 @@ class DataManager:
     One more thing it does: train set can be in phrase or sentence.
     """
 
-    def __init__(self, use_sub_phrases, sentiment_dataset, sent_func, sent_func_kwargs, batch_size=50 ):
+    def __init__(self, use_sub_phrases, sentiment_dataset, sent_func, sent_func_kwargs, batch_size=50):
         """
         :param use_sub_phrases: decide if we want to train with sub phrases
         :param batch_size: the batch size in training
@@ -98,9 +98,14 @@ class DataManager:
         # this will be in format of {"train": OnlineDataset, "test": OnlineDataset, "val: : OnlineDataset}
         self.torch_datasets = {k: OnlineDataset(sentences, self.sent_func, self.sent_func_kwargs) for
                                k, sentences in self.sentences.items()}
-        # Here we use the "DataLoder" class of Torch
-        self.torch_iterators = {k: DataLoader(dataset, batch_size=batch_size, shuffle=k == TRAIN)
-                                for k, dataset in self.torch_datasets.items()}
+        # Here we use the "DataLoder" class of Torch:
+        # train needs to shuffle, test need to be all in one batch: so we get prediction all at once.
+        self.train_iterator = DataLoader(self.torch_datasets[TRAIN], batch_size=batch_size, shuffle= True)
+        self.val_iterator = DataLoader(self.torch_datasets[VAL], batch_size=batch_size)
+        self.test_iterator = DataLoader(self.torch_datasets[TEST], batch_size=len(self.sentences[TEST]))
+        self.torch_iterators = {TRAIN: self.train_iterator,
+                                VAL: self.val_iterator,
+                                TEST: self.test_iterator}
 
     def get_torch_iterator(self, data_subset=TRAIN):
         """
