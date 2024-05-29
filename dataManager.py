@@ -102,7 +102,7 @@ class DataManager:
         # train needs to shuffle, test need to be all in one batch: so we get prediction all at once.
         self.train_iterator = DataLoader(self.torch_datasets[TRAIN], batch_size=batch_size, shuffle= True)
         self.val_iterator = DataLoader(self.torch_datasets[VAL], batch_size=batch_size)
-        self.test_iterator = DataLoader(self.torch_datasets[TEST], batch_size=len(self.sentences[TEST]))
+        self.test_iterator = DataLoader(self.torch_datasets[TEST], batch_size=batch_size)
         self.torch_iterators = {TRAIN: self.train_iterator,
                                 VAL: self.val_iterator,
                                 TEST: self.test_iterator}
